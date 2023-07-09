@@ -1,12 +1,39 @@
-from fastapi import FastAPI, Body, Path, Query, status, Response
+from fastapi import (
+    Depends,
+    FastAPI,
+    Body,
+    Path,
+    Query,
+    status,
+    Response,
+    Request,
+    HTTPException,
+)
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import datetime
+from jwt_manager import create_token, validate_token
+from fastapi.security import HTTPBearer
 
 app = FastAPI()
 app.title = "My app with FastAPI"
 app.version = "0.0.1"
+
+
+class JWTBearer(HTTPBearer):
+    async def __call__(self, request: Request):
+        auth = await super().__call__(request)
+        data = validate_token(auth.credentials)
+        if data["email"] != "admin@gmail.com":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Invalid credentials"
+            )
+
+
+class User(BaseModel):
+    email: str
+    password: str
 
 
 class Movie(BaseModel):
@@ -39,15 +66,24 @@ def message():
     return HTMLResponse("<h1>Hello world!</h1>")
 
 
+# Route to allow the user to login
+@app.post("/login", tags=["auth"])
+def login(user: User):
+    if user.email == "admin@gmail.com" and user.password == "admin":
+        token: str = create_token(user.dict())
+        return JSONResponse(status_code=status.HTTP_200_OK, content=token)
+
+
 # response_model is used to define and document the schema (structure) of the response
 @app.get(
     "/movies",
     tags=["movies"],
     response_model=List[Movie],
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(JWTBearer())],
 )
 def get_movies() -> List[Movie]:
-    return movies
+    return JSONResponse(status_code=status.HTTP_200_OK, content=movies)
     # Both do the same, because FastAPI by default sends an JSONResponse with the content of the return
     # The following is a redundant way
     # return JSONResponse(content=movies)
