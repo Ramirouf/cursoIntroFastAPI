@@ -126,7 +126,7 @@ def get_movies_by_category(
     else:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No movies found with the given category",
+            detail="No movies found for the given category",
         )
     # for item in movies:
     #     if item["category"] == category and item["year"] == year:
