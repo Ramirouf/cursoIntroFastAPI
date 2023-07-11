@@ -9,14 +9,16 @@ from fastapi import (
     Request,
     HTTPException,
 )
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 import datetime
 from jwt_manager import create_token, validate_token
 from fastapi.security import HTTPBearer
 
-app = FastAPI()
+app = FastAPI(
+    title="Introduction to FastAPI", description="Learning purposes", version="0.0.1"
+)
 app.title = "My app with FastAPI"
 app.version = "0.0.1"
 
@@ -63,7 +65,8 @@ movies = [
 # "tags" is used to group endpoints in the documentation
 @app.get("/", tags=["home"])
 def message():
-    return HTMLResponse("<h1>Hello world!</h1>")
+    # return HTMLResponse("<h1>Hello world!</h1>")
+    return FileResponse("./index.html")
 
 
 # Route to allow the user to login
@@ -83,6 +86,7 @@ def login(user: User):
     dependencies=[Depends(JWTBearer())],
 )
 def get_movies() -> List[Movie]:
+    print(movies)
     return JSONResponse(status_code=status.HTTP_200_OK, content=movies)
     # Both do the same, because FastAPI by default sends an JSONResponse with the content of the return
     # The following is a redundant way
@@ -96,11 +100,13 @@ def get_movies() -> List[Movie]:
     status_code=status.HTTP_200_OK,
 )
 # Path is used to validate the path parameter
-def get_movie(response: Response, id: int = Path(ge=1, le=2000)) -> Movie:
-    for item in movies:
-        if item["id"] == id:
-            return item
-    return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=[])
+def get_movie(id: int = Path(ge=1, le=2000)) -> Movie:
+    movie = [movie for movie in movies if movie["id"] == id]
+    if movie:
+        return movie[0]
+    else:
+        raise HTTPException(status_code=404, detail="Movie not found")
+    # return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content=[])
     # response.status_code = status.HTTP_404_NOT_FOUND
     # return []
 
@@ -113,8 +119,15 @@ def get_movie(response: Response, id: int = Path(ge=1, le=2000)) -> Movie:
 def get_movies_by_category(
     category: str = Query(min_length=5, max_length=15)
 ) -> List[Movie]:
-    # ↑↑↑ FastAPI detects that category and year are query params ↑↑↑
-    return [item for item in movies if item["category"] == category]
+    # ↑↑↑ FastAPI auto-detects that category is a query param ↑↑↑
+    filteredMovies = [item for item in movies if item["category"] == category]
+    if filteredMovies:
+        return filteredMovies
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No movies found with the given category",
+        )
     # for item in movies:
     #     if item["category"] == category and item["year"] == year:
     #         return item
@@ -123,7 +136,7 @@ def get_movies_by_category(
 
 @app.post("/movies", tags=["movies"], response_model=dict, status_code=201)
 def create_movie(movie: Movie) -> dict:
-    movies.append(movie)
+    movies.append(dict(movie))
     return {"message": "The movie was registered"}
 
 
